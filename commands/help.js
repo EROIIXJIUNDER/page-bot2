@@ -47,6 +47,7 @@ ${commands.join('\n')}
 ╰─━━━━━━━━━╾─╯
 Chat -help [name] 
 to see command details.
+Made by Asmit Adk
 ━━━━━━━━━━━━━━`;
 
     sendMessage(senderId, { text: helpMessage }, pageAccessToken);
