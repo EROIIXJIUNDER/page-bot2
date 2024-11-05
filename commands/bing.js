@@ -1,7 +1,7 @@
 const axios = require('axios');
 
 module.exports = {
-  name: 'binggen',
+  name: 'bing',
   description: 'Generate and send images directly from Bing based on your prompt.',
   author: 'Jerome',
   async execute(senderId, args, pageAccessToken, sendMessage) {
