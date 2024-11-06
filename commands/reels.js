@@ -14,7 +14,7 @@ const autoSendIntervals = {};
 const paginationTokens = [];
 
 module.exports = {
-  name: "reel",
+  name: "reelss",
   description: "Get status video from Instagram user",
   usage: "reelss on | off",
   author: "Asmit Adk",
@@ -24,12 +24,12 @@ module.exports = {
 
     if (args[0] === "on") {
       autoSendStatus[threadID] = true;
-      await sendMessage(threadID, { text: "Auto-send is now ON for this thread." }, pageAccessToken);
+      await sendMessage(threadID, { text: "Auto-send is now ON ." }, pageAccessToken);
       startAutoSend({ senderId, pageAccessToken });
     } else if (args[0] === "off") {
       autoSendStatus[threadID] = false;
       clearInterval(autoSendIntervals[threadID]);
-      await sendMessage(threadID, { text: "Auto-send is now OFF for this thread." }, pageAccessToken);
+      await sendMessage(threadID, { text: "Auto-send is now OFF." }, pageAccessToken);
     } else {
       await sendReel({ senderId, pageAccessToken });
     }
@@ -40,33 +40,40 @@ async function sendReel({ senderId, pageAccessToken }) {
   try {
     let username, token, apiUrl;
 
+    // Selecting a random username
+    username = usernames[Math.floor(Math.random() * usernames.length)];
     if (paginationTokens.length > 0) {
-      username = usernames[Math.floor(Math.random() * usernames.length)];
       token = paginationTokens[Math.floor(Math.random() * paginationTokens.length)];
       apiUrl = `https://insta-scrapper-kappa.vercel.app/kshitiz?username=${username}&token=${token}`;
     } else {
-      username = usernames[Math.floor(Math.random() * usernames.length)];
       apiUrl = `https://insta-scrapper-kappa.vercel.app/kshitiz?username=${username}`;
     }
 
+    // Fetching the video URL
     const apiResponse = await axios.get(apiUrl);
     const videoURL = apiResponse.data.videoURL;
-    const videoResponse = await axios.get(videoURL, { responseType: "stream" });
+    if (!videoURL) throw new Error("No video URL found");
 
+    const videoResponse = await axios.get(videoURL, { responseType: "stream" });
     const tempVideoPath = path.join(__dirname, "cache", `insta_video_${Date.now()}.mp4`);
+
+    // Saving the video to disk
     const writer = fs.createWriteStream(tempVideoPath);
     videoResponse.data.pipe(writer);
 
-    writer.on("finish", async () => {
-      const videoStream = fs.createReadStream(tempVideoPath);
-
-      await sendMessage(senderId, { text: "", attachment: videoStream }, pageAccessToken);
-      
-      fs.unlink(tempVideoPath, () => {});
+    // Wait until the file is fully written
+    await new Promise((resolve, reject) => {
+      writer.on("finish", resolve);
+      writer.on("error", reject);
     });
 
-    writer.on("error", async () => {
-      await sendMessage(senderId, { text: "Error saving video. Please try again later." }, pageAccessToken);
+    // Sending the video as an attachment
+    const videoStream = fs.createReadStream(tempVideoPath);
+    await sendMessage(senderId, { text: "", attachment: videoStream }, pageAccessToken);
+
+    // Delete the video after sending
+    fs.unlink(tempVideoPath, (err) => {
+      if (err) console.error("Error deleting temp video:", err);
     });
   } catch (error) {
     console.error("Error fetching reel:", error.message || error);
@@ -79,5 +86,5 @@ function startAutoSend({ senderId, pageAccessToken }) {
     if (autoSendStatus[senderId]) {
       sendReel({ senderId, pageAccessToken });
     }
-  }, 60000);
-        }
+  }, 60000); // Auto-send every 60 seconds
+}
