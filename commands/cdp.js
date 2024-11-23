@@ -5,7 +5,7 @@ module.exports = {
   name: 'cdp',
   description: 'get cdp image.',
   usage: 'get cdp pics',
-  author: 'asmit,
+  author: 'asmit',
   async execute(senderId, args, pageAccessToken) {
     const apiUrl = 'https://c-v5.onrender.com/v1/cdp/get';
 
