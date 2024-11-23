@@ -24,7 +24,7 @@ module.exports = {
         return;
       }
 
-      // Step 2: Get the download link
+      // Step 2: Get the download link (direct video URL)
       const downloadResponse = await axios.get(`https://yt-kshitiz.vercel.app/download?id=${videoId}`);
       const videoUrl = downloadResponse.data[0];
 
@@ -33,15 +33,33 @@ module.exports = {
         return;
       }
 
-      // Step 3: Send the video as an attachment
-      sendMessage(
-        senderId,
-        {
-          text: `📹 Here is your video: ${title}\nDownload: ${videoUrl}`,
-          attachment: { type: 'video', payload: { url: videoUrl, is_reusable: true } },
-        },
-        pageAccessToken
-      );
+      // Check if video URL is downloadable and not too large
+      // Assuming videoUrl is a direct file URL that can be streamed
+      // Messenger accepts video attachment URLs, and typically video files should be under 25MB
+
+      const videoStreamResponse = await axios.head(videoUrl); // Make a HEAD request to check file size
+      const fileSize = parseInt(videoStreamResponse.headers['content-length'], 10);
+
+      // If file size exceeds Messenger's limit (around 25MB), send the download link instead
+      if (fileSize > 25 * 1024 * 1024) { // 25MB in bytes
+        sendMessage(
+          senderId,
+          {
+            text: `📹 The video is too large to send directly. You can download it here: ${videoUrl}`
+          },
+          pageAccessToken
+        );
+      } else {
+        // Step 3: Send the video as an attachment
+        sendMessage(
+          senderId,
+          {
+            text: `📹 Here is your video: ${title}`,
+            attachment: { type: 'video', payload: { url: videoUrl, is_reusable: true } }
+          },
+          pageAccessToken
+        );
+      }
     } catch (error) {
       console.error('Error fetching video:', error.message);
       sendMessage(senderId, { text: 'Sorry, there was an error processing your request. Please try again later.' }, pageAccessToken);
