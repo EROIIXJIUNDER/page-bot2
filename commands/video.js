@@ -63,12 +63,17 @@ module.exports = {
           pageAccessToken
         );
       } else {
-        // Step 3: Send the video as an attachment
+        // Step 3: Send the video as an attachment (only send attachment or text, not both)
         sendMessage(
           senderId,
           {
-            text: `📹 Here is your video: ${title}`,
-            attachment: { type: 'video', payload: { url: videoUrl, is_reusable: true } }
+            attachment: { 
+              type: 'video', 
+              payload: { 
+                url: videoUrl, 
+                is_reusable: true 
+              }
+            }
           },
           pageAccessToken
         );
