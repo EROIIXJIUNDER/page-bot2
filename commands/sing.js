@@ -11,20 +11,17 @@ const API_KEYS = [
     '4bd76967f9msh2ba46c8cf871b4ep1eab38jsn19c9067a90bb',
 ];
 
-// Helper to get a random API key from the list
 const getRandomApiKey = () => {
     const randomIndex = Math.floor(Math.random() * API_KEYS.length);
     return API_KEYS[randomIndex];
 };
 
-// Function to handle the song search and sending to the user
 async function sing(senderId, args, pageAccessToken) {
     try {
         let title = '';
         let videoId = '';
         let videoUrl = '';
 
-        // If no args are provided, ask the user to provide a song name
         if (args.length === 0) {
             sendMessage(senderId, { text: 'Please provide a song name to search.' }, pageAccessToken);
             return;
@@ -43,7 +40,6 @@ async function sing(senderId, args, pageAccessToken) {
             return;
         }
 
-        // Get the song download link using the video ID
         const videoUrlResponse = await axios.get(`https://yt-kshitiz.vercel.app/download?id=${encodeURIComponent(videoId)}&apikey=${getRandomApiKey()}`);
         if (videoUrlResponse.data.length > 0) {
             videoUrl = videoUrlResponse.data[0];
@@ -54,11 +50,11 @@ async function sing(senderId, args, pageAccessToken) {
             return;
         }
 
-        // If the song size is greater than 25MB, send a download link
+        // Checking file size before sending it as an attachment
         const videoStreamResponse = await axios.head(videoUrl); // HEAD request to check file size
         const fileSize = parseInt(videoStreamResponse.headers['content-length'], 10);
 
-        if (fileSize > 25 * 1024 * 1024) { // If the file size exceeds 25MB, send a download link
+        if (fileSize > 25 * 1024 * 1024) { // If file size exceeds 25MB, send a download link instead of uploading
             sendMessage(
                 senderId,
                 {
@@ -67,7 +63,7 @@ async function sing(senderId, args, pageAccessToken) {
                 pageAccessToken
             );
         } else {
-            // Otherwise, send the song as an attachment
+            // Sending the song directly if it's small enough
             sendMessage(
                 senderId,
                 {
