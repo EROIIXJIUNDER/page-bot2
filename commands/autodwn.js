@@ -7,6 +7,11 @@ module.exports = {
   usage: 'Send a video link, and it will auto-download.',
   author: 'Asmit',
   async execute(senderId, args, pageAccessToken, event) {
+    // Check if the message object contains the 'text' field
+    if (!event || !event.message || !event.message.text) {
+      return sendMessage(senderId, { text: '⚠️ Unable to process the message.' }, pageAccessToken);
+    }
+
     const userMessage = event.message.text;
 
     // Check if the message contains a valid URL
@@ -14,7 +19,7 @@ module.exports = {
     const foundUrl = userMessage.match(urlRegex);
 
     if (!foundUrl) {
-      return; // Exit if no URL is found in the user's message.
+      return sendMessage(senderId, { text: '⚠️ No valid URL found in the message.' }, pageAccessToken);
     }
 
     const videoUrl = foundUrl[0];
