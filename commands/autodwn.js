@@ -3,49 +3,60 @@ const { sendMessage } = require('../handles/sendMessage');
 
 module.exports = {
   name: 'autodownload',
-  description: 'Automatically downloads video links sent by the user',
-  usage: 'Send a video link, and it will auto-download.',
+  description: 'Automatically download and send a video from a link.',
+  usage: 'autodownload [link]',
   author: 'Asmit',
-  async execute(senderId, args, pageAccessToken, event) {
-    // Check if the message object contains the 'text' field
-    if (!event || !event.message || !event.message.text) {
-      return sendMessage(senderId, { text: '⚠️ Unable to process the message.' }, pageAccessToken);
+
+  async execute(senderId, args, pageAccessToken) {
+    if (!args.length) {
+      sendMessage(senderId, { text: 'Please provide a valid link to download.' }, pageAccessToken);
+      return;
     }
 
-    const userMessage = event.message.text;
-
-    // Check if the message contains a valid URL
-    const urlRegex = /(https?:\/\/[^\s]+)/;
-    const foundUrl = userMessage.match(urlRegex);
-
-    if (!foundUrl) {
-      return sendMessage(senderId, { text: '⚠️ No valid URL found in the message.' }, pageAccessToken);
-    }
-
-    const videoUrl = foundUrl[0];
-    const apiUrl = `https://kaiz-apis.gleeze.com/api/aio-downloader?url=${encodeURIComponent(videoUrl)}`;
+    const url = args[0];
+    const apiEndpoint = `https://kaiz-apis.gleeze.com/api/aio-downloader?url=${encodeURIComponent(url)}`;
 
     try {
-      const response = await axios.get(apiUrl);
+      // Step 1: Fetch the video download link from the API
+      const response = await axios.get(apiEndpoint);
+      const videoUrl = response.data?.video?.url; // Adjust based on the API response structure
 
-      if (response.data.success) {
-        const videoDownloadUrl = response.data.data.download[0].url;
-        const videoTitle = response.data.data.title || 'Downloaded Video';
+      if (!videoUrl) {
+        sendMessage(senderId, { text: 'Sorry, no downloadable video found for the provided link.' }, pageAccessToken);
+        return;
+      }
 
-        // Send the video back to the user
+      // Step 2: Check video file size
+      const videoStreamResponse = await axios.head(videoUrl); // HEAD request to check file details
+      const fileSize = parseInt(videoStreamResponse.headers['content-length'], 10);
+
+      if (fileSize > 25 * 1024 * 1024) { // If file size exceeds 25MB
         sendMessage(
           senderId,
           {
-            text: `🎥 **${videoTitle}**\n\n📥 Downloading...`,
-            attachment: { type: 'file', payload: { url: videoDownloadUrl } },
+            text: `📹 The video is too large to send directly. You can download it here: ${videoUrl}`,
           },
           pageAccessToken
         );
       } else {
-        sendMessage(senderId, { text: '⚠️ Unable to download the video. Please check the URL.' }, pageAccessToken);
+        // Step 3: Send video directly as an attachment
+        sendMessage(
+          senderId,
+          {
+            attachment: {
+              type: 'video',
+              payload: {
+                url: videoUrl,
+                is_reusable: true,
+              },
+            },
+          },
+          pageAccessToken
+        );
       }
     } catch (error) {
-      sendMessage(senderId, { text: `⚠️ An error occurred: ${error.message}` }, pageAccessToken);
+      console.error('Error downloading video:', error.message);
+      sendMessage(senderId, { text: 'Sorry, there was an error processing your request. Please try again later.' }, pageAccessToken);
     }
   },
 };
