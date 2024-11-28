@@ -17,13 +17,12 @@ module.exports = {
 
     const url = args[0];
     try {
-      // Make the API request
-      const response = await axios.get(`https://kaiz-apis.gleeze.com/api/fbuid?url=${encodeURIComponent(url)}`);
-      
-      // Log the API response for debugging
-      console.log('API Response:', response.data);
+      const apiUrl = `https://kaiz-apis.gleeze.com/api/fbuid?url=${encodeURIComponent(url)}`;
+      console.log(`Fetching UID from: ${apiUrl}`); // Debug log
 
-      // Extract UID from the response
+      const response = await axios.get(apiUrl);
+      console.log('API Response:', response.data); // Debug log
+
       if (response.data && response.data.uid) {
         const uid = response.data.uid;
         const successMessage = `
@@ -32,16 +31,15 @@ module.exports = {
 **UID**: ${uid}`;
         sendMessage(senderId, { text: successMessage }, pageAccessToken);
       } else {
-        // Handle missing or invalid UID in the API response
         sendMessage(senderId, { text: '⚠️ Unable to fetch UID. Please check the URL and try again.' }, pageAccessToken);
       }
     } catch (error) {
-      // Log the error for debugging
-      console.error('Error fetching UID:', error);
+      console.error('Error fetching UID:', error.response?.data || error.message); // Debug log
 
       const errorMessage = `
 ❌ An error occurred while fetching the UID.
-**Details**: ${error.response?.data?.message || error.message || 'Unknown error'}`;
+**Details**: ${error.response?.data?.message || error.message || 'Unknown error'}
+**API URL**: ${url}`;
       sendMessage(senderId, { text: errorMessage }, pageAccessToken);
     }
   }
