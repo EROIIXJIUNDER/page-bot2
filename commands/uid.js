@@ -17,22 +17,31 @@ module.exports = {
 
     const url = args[0];
     try {
+      // Make the API request
       const response = await axios.get(`https://kaiz-apis.gleeze.com/api/fbuid?url=${encodeURIComponent(url)}`);
-      const { uid } = response.data;
+      
+      // Log the API response for debugging
+      console.log('API Response:', response.data);
 
-      if (uid) {
+      // Extract UID from the response
+      if (response.data && response.data.uid) {
+        const uid = response.data.uid;
         const successMessage = `
 ✔️ Facebook UID fetched successfully:
 **URL**: ${url}
 **UID**: ${uid}`;
         sendMessage(senderId, { text: successMessage }, pageAccessToken);
       } else {
+        // Handle missing or invalid UID in the API response
         sendMessage(senderId, { text: '⚠️ Unable to fetch UID. Please check the URL and try again.' }, pageAccessToken);
       }
     } catch (error) {
+      // Log the error for debugging
+      console.error('Error fetching UID:', error);
+
       const errorMessage = `
 ❌ An error occurred while fetching the UID.
-**Details**: ${error.message || 'Unknown error'}`;
+**Details**: ${error.response?.data?.message || error.message || 'Unknown error'}`;
       sendMessage(senderId, { text: errorMessage }, pageAccessToken);
     }
   }
