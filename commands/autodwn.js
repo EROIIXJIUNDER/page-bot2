@@ -1,120 +1,69 @@
 const axios = require('axios');
+const fs = require('fs');
+const path = require('path');
 const { sendMessage } = require('../handles/sendMessage');
 
 module.exports = {
-  name: 'autoDownload',
-  description: 'Automatically download videos from various platforms',
-  usage: 'autoDownload [video URL]',
-  author: 'Your Name',
-
+  name: 'download',
+  description: 'Download video from a given URL',
+  usage: 'download [Video URL]',
+  author: 'Asmit Adk',
   async execute(senderId, args, pageAccessToken) {
-    // Validate that a URL is provided
-    if (!args.length) {
-      return sendMessage(senderId, { text: 'Please provide a video URL to download.' }, pageAccessToken);
+    if (args.length === 0) {
+      const errorMessage = `
+⚠️ Missing URL. Please provide a valid video URL.
+**Usage**: download [Video URL]`;
+      sendMessage(senderId, { text: errorMessage }, pageAccessToken);
+      return;
     }
 
-    const videoUrl = args[0];
-
+    const url = args[0];
     try {
-      // Send initial processing message
-      await sendMessage(senderId, { text: '🔍 Processing your video download request...' }, pageAccessToken);
+      const apiUrl = `https://kaiz-apis.gleeze.com/api/aio-downloader?url=${encodeURIComponent(url)}`;
+      console.log(`Fetching video details from: ${apiUrl}`); // Debug log
 
-      // Make request to the AIO downloader API
-      const downloadResponse = await axios.get(`https://kaiz-apis.gleeze.com/api/aio-downloader?url=${encodeURIComponent(videoUrl)}`, {
-        timeout: 30000
-      });
+      // Fetch video details
+      const response = await axios.get(apiUrl);
+      const videoData = response.data;
 
-      // Detailed logging of API response
-      console.log('Full API Response:', JSON.stringify(downloadResponse.data, null, 2));
+      if (videoData && videoData.download_url) {
+        const videoUrl = videoData.download_url;
+        const videoTitle = videoData.title || 'video';
 
-      // Comprehensive data validation
-      if (!downloadResponse.data) {
-        return sendMessage(senderId, { text: '❌ No data received from download service.' }, pageAccessToken);
+        // Download the video
+        const videoPath = path.join(__dirname, `../downloads/${videoTitle}.mp4`);
+        const videoStream = fs.createWriteStream(videoPath);
+
+        const downloadResponse = await axios({
+          method: 'get',
+          url: videoUrl,
+          responseType: 'stream',
+        });
+
+        downloadResponse.data.pipe(videoStream);
+
+        videoStream.on('finish', () => {
+          const successMessage = `
+✔️ Video downloaded successfully!
+**Title**: ${videoTitle}
+**Path**: ${videoPath}`;
+          sendMessage(senderId, { text: successMessage }, pageAccessToken);
+        });
+
+        videoStream.on('error', (err) => {
+          console.error('Error writing video to file:', err);
+          sendMessage(senderId, { text: '❌ Error downloading video.' }, pageAccessToken);
+        });
+      } else {
+        sendMessage(senderId, { text: '⚠️ Unable to fetch video details. Please check the URL and try again.' }, pageAccessToken);
       }
-
-      // Handle different response structures
-      const downloadLinks = Array.isArray(downloadResponse.data) 
-        ? downloadResponse.data 
-        : [downloadResponse.data];
-
-      // Find first valid download link
-      const validDownload = downloadLinks.find(item => 
-        item && (item.url || item.downloadUrl || item.link)
-      );
-
-      if (!validDownload) {
-        return sendMessage(
-          senderId, 
-          { 
-            text: '❌ Unable to retrieve download link. Possible reasons:\n' +
-                  '- Unsupported platform\n' +
-                  '- Invalid URL\n' +
-                  '- Temporary service issues' 
-          }, 
-          pageAccessToken
-        );
-      }
-
-      // Extract download link with fallback
-      const downloadLink = 
-        validDownload.url || 
-        validDownload.downloadUrl || 
-        validDownload.link;
-
-      const videoTitle = 
-        validDownload.title || 
-        validDownload.filename || 
-        'Downloaded Video';
-
-      // Send video attachment
-      await sendMessage(
-        senderId,
-        {
-          attachment: { 
-            type: 'video', 
-            payload: { 
-              url: downloadLink, 
-              is_reusable: true 
-            }
-          }
-        },
-        pageAccessToken
-      );
-
-      // Optional metadata
-      if (validDownload.duration || validDownload.size) {
-        await sendMessage(
-          senderId, 
-          { 
-            text: `📊 Video Details:\n` +
-                  `Title: ${videoTitle}\n` +
-                  `${validDownload.duration ? `Duration: ${validDownload.duration}\n` : ''}` +
-                  `${validDownload.size ? `Size: ${validDownload.size}` : ''}`
-          }, 
-          pageAccessToken
-        );
-      }
-
     } catch (error) {
-      console.error('Detailed Download Error:', error);
+      console.error('Error downloading video:', error.response?.data || error.message); // Debug log
 
-      // Comprehensive error handling
-      const errorMessage = 
-        error.response 
-          ? `Server Error (${error.response.status}): ${error.response.data?.message || 'Unknown error'}` :
-        error.request 
-          ? 'No response from server. The service might be temporarily unavailable.' :
-        error.message 
-          ? `Request Error: ${error.message}` :
-        'An unexpected error occurred';
-
-      await sendMessage(
-        senderId, 
-        { 
-          text: `❌ Download Failed\n${errorMessage}\n\nPlease check:\n- URL validity\n- Platform support\n- Service availability` 
-        }, 
-        pageAccessToken
-      );
+      const errorMessage = `
+❌ An error occurred while fetching or downloading the video.
+**Details**: ${error.response?.data?.message || error.message || 'Unknown error'}`;
+      sendMessage(senderId, { text: errorMessage }, pageAccessToken);
     }
-  }
+  },
 };
