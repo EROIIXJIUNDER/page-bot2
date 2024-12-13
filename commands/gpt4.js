@@ -1,119 +1,53 @@
-const axios = require("axios");
-const { sendMessage } = require('../handles/sendMessage');
+const axios = require('axios');
+const { sendMessage } = require('../handles/message');
+const MAX_MESSAGE_LENGTH = 2000;
+const DELAY_BETWEEN_MESSAGES = 1000; // 1 second
+
+
+function sendLongMessage(senderId, text, pageAccessToken, sendMessage) {
+  if (text.length > MAX_MESSAGE_LENGTH) {
+    const messages = splitMessageIntoChunks(text, MAX_MESSAGE_LENGTH);
+
+    sendMessage(senderId, { text: messages[0] }, pageAccessToken);
+
+    messages.slice(1).forEach((message, index) => {
+      setTimeout(() => sendMessage(senderId, { text: message }, pageAccessToken), (index + 1) * DELAY_BETWEEN_MESSAGES);
+    });
+  } else {
+    sendMessage(senderId, { text }, pageAccessToken);
+  }
+}
+
+
+function splitMessageIntoChunks(message, chunkSize) {
+  const regex = new RegExp(`.{1,${chunkSize}}`, 'g');
+  return message.match(regex);
+}
 
 module.exports = {
-  name: "gpt4o",
-  description: "interact with gpt4o pro with generate & recognize image",
-  author: "Emman Co",
-
-  async execute(senderId, args, pageAccessToken, event, imageUrl) {
-    const userPrompt = args.join(" ").trim();
-
-    if (!userPrompt && !imageUrl) {
-      return sendMessage(
-        senderId,
-        {
-          text: `❌ Provide a description for image generation or an image URL for recognition.`
-        },
-        pageAccessToken
-      );
+  name: 'gpt4',
+  description: 'Ask GPT-4 for a response to a given query',
+  usage: '-gpt4 <query>',
+  author: 'coffee',
+  async execute(senderId, args, pageAccessToken) {
+    if (!args || !Array.isArray(args) || args.length === 0) {
+      await sendMessage(senderId, { text: 'Please provide a query.' }, pageAccessToken);
+      return;
     }
 
-    sendMessage(
-      senderId,
-      {
-        text: "⌛ Processing your request, please wait..."
-      },
-      pageAccessToken
-    );
+    const query = args.join(' ');
 
     try {
-      if (!imageUrl) {
-        if (event.message?.reply_to?.mid) {
-          imageUrl = await getRepliedImage(event.message.reply_to.mid, pageAccessToken);
-        } else if (event.message?.attachments?.[0]?.type === "image") {
-          imageUrl = event.message.attachments[0].payload.url;
-        }
-      }
+      const apiUrl = `https://markdevs-last-api-2epw.onrender.com/api/v2/gpt4?query=${encodeURIComponent(query)}`;
+      const response = await axios.get(apiUrl);
+      const gptResponse = response.data.respond;
 
-      const apiUrl = "https://kaiz-apis.gleeze.com/api/gpt-4o-pro";
-      const response = await handleAI3Request(apiUrl, userPrompt, imageUrl);
-
-      const result = response.response;
-
-      if (result.includes('TOOL_CALL: generateImage')) {
-        const imageUrlMatch = result.match(/\!\[.*?\]\((https:\/\/.*?)\)/);
-
-        if (imageUrlMatch && imageUrlMatch[1]) {
-          const imageUrl = imageUrlMatch[1];
-          await sendMessage(senderId, {
-            attachment: {
-              type: 'image',
-              payload: { url: imageUrl }
-            }
-          }, pageAccessToken);
-          return;
-        }
-      }
-
-      const message = `${result}`;
-
-      await sendConcatenatedMessage(senderId, message, pageAccessToken);
+      
+      sendLongMessage(senderId, gptResponse, pageAccessToken, sendMessage);
 
     } catch (error) {
-      console.error("Error in Gpt4o command:", error);
-      sendMessage(
-        senderId,
-        { text: `❌ Error: ${error.message || "Something went wrong."}` },
-        pageAccessToken
-      );
+      console.error('Error:', error);
+      await sendMessage(senderId, { text: 'Error: Could not get a response from GPT-4.' }, pageAccessToken);
     }
   }
 };
-
-async function handleAI3Request(apiUrl, query, imageUrl) {
-  const { data } = await axios.get(apiUrl, {
-    params: {
-      q: query || "",
-      uid: "conversational",
-      imageUrl: imageUrl || ""
-    }
-  });
-
-  return data;
-}
-
-async function getRepliedImage(mid, pageAccessToken) {
-  const { data } = await axios.get(`https://graph.facebook.com/v21.0/${mid}/attachments`, {
-    params: { access_token: pageAccessToken }
-  });
-
-  if (data?.data?.[0]?.image_data?.url) {
-    return data.data[0].image_data.url;
-  }
-
-  return "";
-}
-
-async function sendConcatenatedMessage(senderId, text, pageAccessToken) {
-  const maxMessageLength = 2000;
-
-  if (text.length > maxMessageLength) {
-    const messages = splitMessageIntoChunks(text, maxMessageLength);
-
-    for (const message of messages) {
-      await new Promise(resolve => setTimeout(resolve, 500));
-      await sendMessage(senderId, { text: message }, pageAccessToken);
-    }
-  } else {
-    await sendMessage(senderId, { text }, pageAccessToken);
-  }
-}
-
-function splitMessageIntoChunks(message, chunkSize) {
-  const chunks = [];
-  for (let i = 0; i < message.length; i += chunkSize) {
-    chunks.push(message.slice(i, i + chunkSize));
-  }
-  return chunks;
-}
