@@ -1,59 +1,64 @@
 const fs = require('fs');
 const path = require('path');
-const { sendMessage } = require('../handles/sendMessage');
+const { sendMessage } = require('../handles/message');
 
 module.exports = {
   name: 'help',
-  description: 'Show available commands',
-  usage: 'help\nhelp [command name]',
-  author: 'System',
+  description: 'Show available commands with descriptions',
+  role: 1,
+  author: 'kiana',
+  
   execute(senderId, args, pageAccessToken) {
-    const commandsDir = path.join(__dirname, '../commands');
+    const commandsDir = path.join(__dirname, '../cmds');
     const commandFiles = fs.readdirSync(commandsDir).filter(file => file.endsWith('.js'));
 
-    if (args.length > 0) {
-      const commandName = args[0].toLowerCase();
-      const commandFile = commandFiles.find(file => {
-        const command = require(path.join(commandsDir, file));
-        return command.name.toLowerCase() === commandName;
-      });
-
-      if (commandFile) {
-        const command = require(path.join(commandsDir, commandFile));
-        const commandDetails = `
-━━━━━━━━━━━━━━━━━━━━━━
-📝 𝙲𝚘𝚖𝚖𝚊𝚗𝚍 𝙳𝚎𝚝𝚊𝚒𝚕𝚜
-━━━━━━━━━━━━━━━━━━━━━━
-➤ **𝙲𝚘𝚖𝚖𝚊𝚗𝚍**: ${command.name}
-➤ **𝙳𝚎𝚜𝚌𝚛𝚒𝚙𝚝𝚒𝚘𝚗**: ${command.description}
-➤ **𝚄𝚜𝚊𝚐𝚎**: ${command.usage}
-━━━━━━━━━━━━━━━━━━━━━━`;
-
-        sendMessage(senderId, { text: commandDetails }, pageAccessToken);
-      } else {
-        sendMessage(senderId, { text: `❌ Command "${commandName}" not found.` }, pageAccessToken);
-      }
-      return;
-    }
-
-    const commands = commandFiles.map(file => {
+   
+    const commands = commandFiles.map((file) => {
       const command = require(path.join(commandsDir, file));
-      return `🔹 **${command.name}**: ${command.description}`;
+      return {
+        title: `✨ ${command.name.charAt(0).toUpperCase() + command.name.slice(1)}`,
+        description: command.description,
+        payload: `${command.name.toUpperCase()}_PAYLOAD`
+      };
     });
 
-    const helpMessage = `
-━━━━━━━━━━━━━━━━━━━━━━━━
-💡 𝘼𝙑𝘼𝙄𝙇𝘼𝘽𝙇𝙀 𝘾𝚘𝚖𝚖𝚊𝚗𝚍𝚜
-━━━━━━━━━━━━━━━━━━━━━━━━
-${commands.join('\n')}
-━━━━━━━━━━━━━━━━━━━━━━━━
+    const totalCommands = commands.length;
+    const commandsPerPage = 5;
+    const totalPages = Math.ceil(totalCommands / commandsPerPage);
+    let page = parseInt(args[0], 10);
 
-🔍 For more details on a specific command, type:
-\`-help [command name]\`
+ 
+    if (isNaN(page) || page < 1) page = 1;
 
-🌟 Made with ❤️ by Asmit Adk
-━━━━━━━━━━━━━━━━━━━━━━━━`;
+    // Display all commands if "help all" is provided
+    if (args[0]?.toLowerCase() === 'all') {
+      const helpTextMessage = `🌟 **All Available Commands**\n📜 **Total Commands**: ${totalCommands}\n\n${commands.map((cmd, index) => `${index + 1}. ${cmd.title}\n📖 ${cmd.description}`).join('\n\n')}`;
+      return sendMessage(senderId, { text: helpTextMessage }, pageAccessToken);
+    }
 
-    sendMessage(senderId, { text: helpMessage }, pageAccessToken);
+
+    const startIndex = (page - 1) * commandsPerPage;
+    const commandsForPage = commands.slice(startIndex, startIndex + commandsPerPage);
+
+    if (commandsForPage.length === 0) {
+      return sendMessage(senderId, {
+        text: `❌ Oops! Page ${page} doesn't exist. There are only ${totalPages} page(s) available.`,
+      }, pageAccessToken);
+    }
+
+    const helpTextMessage = `🚀 **Commands List** (Page ${page}/${totalPages})\n📜 **Total Commands**: ${totalCommands}\n\n${commandsForPage.map((cmd, index) => `${startIndex + index + 1}. ${cmd.title}\n📝 ${cmd.description}`).join('\n\n')}\n\n📌 **Tip**: Use "help [page]" to switch pages, or "help all" to see all commands!`;
+
+
+    const quickReplies = commandsForPage.map((cmd) => ({
+      content_type: "text",
+      title: cmd.title.replace('✨ ', ''),
+      payload: cmd.payload
+    }));
+
+
+    sendMessage(senderId, {
+      text: helpTextMessage,
+      quick_replies: quickReplies
+    }, pageAccessToken);
   }
 };
